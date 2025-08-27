@@ -1,3 +1,4 @@
+// models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -8,7 +9,14 @@ const userSchema = new mongoose.Schema({
   age: { type: Number, default: null },
   city: { type: String, default: '' },
   profileCompleted: { type: Boolean, default: false },
-
+  role: { 
+    type: String, 
+    enum: ['user', 'ngo'], 
+    default: 'user' 
+  },
+  ngoName: { type: String, default: '' }, // Only for NGO users
+  ngoDescription: { type: String, default: '' }, // Only for NGO users
+  
   // ✅ Stats with defaults in schema only
   checkIns: { type: Number, default: 0 },
   drivesJoined: { type: Number, default: 0 },
