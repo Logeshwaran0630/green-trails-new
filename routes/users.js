@@ -1,129 +1,108 @@
 const express = require('express');
 const router = express.Router();
-const Activity = require('../models/Activity');
 const User = require('../models/User');
 
 // =====================
 // Users Routes
 // =====================
 
-// ✅ Create or return existing user – defaults come from schema
-router.post('/users', async (req, res) => {
+// Create or return existing user – defaults come from schema
+router.post('/', async (req, res) => {
   try {
-    const { clerkUserId, email, firstName = '', lastName = '' } = req.body;
+    const { clerkUserId, email, firstName = '', lastName = '', role = 'user' } = req.body;
 
+    // Check if user already exists
     let user = await User.findOne({ clerkUserId });
-    if (user) return res.json(user);
+    if (user) {
+      return res.json(user);
+    }
 
-    const newUser = new User({ clerkUserId, email, firstName, lastName });
+    // Create new user with provided data
+    const newUser = new User({ 
+      clerkUserId, 
+      email, 
+      firstName, 
+      lastName, 
+      role,
+      profileCompleted: false,
+      checkIns: 0,
+      drivesJoined: 0,
+      badges: 0
+    });
+
     await newUser.save();
     return res.status(201).json(newUser);
 
   } catch (err) {
     console.error('User creation error:', err);
-    return res.status(500).json({ message: 'Failed to create user', error: err.message });
+    return res.status(500).json({ 
+      message: 'Failed to create user', 
+      error: err.message 
+    });
   }
 });
 
-// ✅ Fetch user
-router.get('/users/:clerkUserId', async (req, res) => {
+// Fetch user by clerkUserId
+router.get('/:clerkUserId', async (req, res) => {
   try {
     const user = await User.findOne({ clerkUserId: req.params.clerkUserId });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
     return res.json(user);
   } catch (err) {
-    return res.status(500).json({ message: 'Failed to fetch user', error: err.message });
+    console.error('User fetch error:', err);
+    return res.status(500).json({ 
+      message: 'Failed to fetch user', 
+      error: err.message 
+    });
   }
 });
 
-// ✅ Update user
-router.patch('/users/:clerkUserId', async (req, res) => {
+// Update user
+router.patch('/:clerkUserId', async (req, res) => {
   try {
+    const { clerkUserId } = req.params;
+    const updateData = req.body;
+
     const updatedUser = await User.findOneAndUpdate(
-      { clerkUserId: req.params.clerkUserId },
-      req.body,
-      { new: true }
+      { clerkUserId },
+      updateData,
+      { new: true, runValidators: true }
     );
-    if (!updatedUser) return res.status(404).json({ message: 'User not found' });
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     return res.json(updatedUser);
   } catch (err) {
-    return res.status(500).json({ message: 'Failed to update user', error: err.message });
-  }
-});
-
-// =====================
-// Activities Routes
-// =====================
-
-// ✅ Create a new activity (NGO only)
-router.post('/activities', async (req, res) => {
-  try {
-    const { title, description, location, date, maxParticipants, category, organizerId } = req.body;
-    
-    const organizer = await User.findOne({ clerkUserId: organizerId });
-    if (!organizer || organizer.role !== 'ngo') {
-      return res.status(403).json({ message: 'Only NGOs can create activities' });
-    }
-
-    const newActivity = new Activity({
-      title,
-      description,
-      location,
-      date,
-      maxParticipants,
-      category,
-      organizer: organizer._id
+    console.error('User update error:', err);
+    return res.status(500).json({ 
+      message: 'Failed to update user', 
+      error: err.message 
     });
-
-    await newActivity.save();
-    await newActivity.populate('organizer', 'firstName lastName ngoName');
-    return res.status(201).json(newActivity);
-  } catch (err) {
-    console.error('Activity creation error:', err);
-    return res.status(500).json({ message: 'Failed to create activity', error: err.message });
   }
 });
 
-// ✅ Get all activities
-router.get('/activities', async (req, res) => {
+// Delete user (optional)
+router.delete('/:clerkUserId', async (req, res) => {
   try {
-    const activities = await Activity.find()
-      .populate('organizer', 'firstName lastName ngoName')
-      .populate('participants', 'firstName lastName');
-    return res.json(activities);
-  } catch (err) {
-    return res.status(500).json({ message: 'Failed to fetch activities', error: err.message });
-  }
-});
-
-// ✅ Join an activity
-router.post('/activities/:activityId/join', async (req, res) => {
-  try {
-    const { userId } = req.body;
-    const { activityId } = req.params;
-
-    const user = await User.findOne({ clerkUserId: userId });
-    const activity = await Activity.findById(activityId);
-
-    if (!user || !activity) return res.status(404).json({ message: 'User or activity not found' });
-
-    if (activity.participants.includes(user._id)) {
-      return res.status(400).json({ message: 'User already joined this activity' });
+    const deletedUser = await User.findOneAndDelete({ 
+      clerkUserId: req.params.clerkUserId 
+    });
+    
+    if (!deletedUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
-
-    if (activity.maxParticipants && activity.participants.length >= activity.maxParticipants) {
-      return res.status(400).json({ message: 'Activity is full' });
-    }
-
-    activity.participants.push(user._id);
-    await activity.save();
-
-    user.drivesJoined += 1;
-    await user.save();
-
-    return res.json({ message: 'Successfully joined activity', activity });
+    
+    return res.json({ message: 'User deleted successfully' });
   } catch (err) {
-    return res.status(500).json({ message: 'Failed to join activity', error: err.message });
+    console.error('User deletion error:', err);
+    return res.status(500).json({ 
+      message: 'Failed to delete user', 
+      error: err.message 
+    });
   }
 });
 
